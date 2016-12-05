@@ -92,12 +92,14 @@ def rotation_3d(omega, theta):
   rot = identity + omega_hat*np.sin(norm*theta)/norm + np.dot(omega_hat, omega_hat) * (1-np.cos(norm*theta))/(norm*norm)
   return rot
 
+# NEW!
 def deg2rad(deg):
   # Zumy likes radians
   return deg * np.pi/180.
 
 # NEW!
-def rotate_zumy_get_twist(angle):
+def turn_zumy(angle):
+  # angle in degrees
   omega = np.array([0, 0, 1]) # rotate about z
   translation = np.array([0, 0, 0])
   theta = deg2rad(angle)
@@ -204,12 +206,12 @@ class ZumyROS:
         pass
 
       try:
-        twist = rotate_zumy_get_twist(self.directions['L'])
+        twist = turn_zumy(self.directions['L'])
         self.zumy_vel_pub.publish(twist)
       except ValueError:
-        self.IR_ai_pub.publish(1.0)
         pass
 
+      #END NEW
       try:
         imu_data = self.zumy.read_imu()
         imu_msg = Imu()
