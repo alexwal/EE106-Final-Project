@@ -1,0 +1,3 @@
+bool enabled_status
+bool battery_unsafe
+float32 loop_freq

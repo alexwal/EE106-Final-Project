@@ -1,0 +1,20 @@
+<launch>
+  <arg name="mname" default="zumyX" />
+  <arg name="timeout" default="1.5" />
+  
+
+ 
+  <node ns="$(arg mname)" name="base_station" pkg="odroid_machine" type="estop.py" output="screen">
+  	<param name="mname" value="$(arg mname)"/>
+  </node>
+ 
+
+  <include file="$(find odroid_machine)/launch/odroid_machine.launch">
+    <arg name="mname" value="$(arg mname)" />
+  </include>
+
+  
+  <node machine="$(arg mname)" ns="$(arg mname)" name="zumy_ros_bridge" pkg="zumy_ros" type="zumy_ros_bridge.py"  output="screen" >
+    	 <param name="timeout" value="$(arg timeout)" />
+  </node>
+</launch>

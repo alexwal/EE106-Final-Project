@@ -1,0 +1,3 @@
+[submodule "on_host_computer/odroid_machine"]
+	path = on_host_computer/odroid_machine
+	url = https://github.com/vshia/odroid_machine.git
