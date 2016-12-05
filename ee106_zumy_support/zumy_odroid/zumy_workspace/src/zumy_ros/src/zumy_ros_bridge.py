@@ -1,16 +1,113 @@
 #!/usr/bin/python
 
 import rospy
-
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Vector3, Twist
 from threading import Condition
 from zumy import Zumy
 from std_msgs.msg import String,Header,Int32,Float32,Bool
 from sensor_msgs.msg import Imu
 from zumy_ros.msg import ZumyStatus
 import numpy as np
-
 import socket,time
+
+# NEW!
+def skew_3d(omega):
+  """
+  Converts a rotation vector in 3D to its corresponding skew-symmetric matrix.
+  
+  Args:
+  omega - (3,) ndarray: the rotation vector
+  
+  Returns:
+  omega_hat - (3,3) ndarray: the corresponding skew symmetric matrix
+  """
+  omega = np.array(omega)
+  if not omega.shape == (3,):
+    raise TypeError('omega must be a 3-vector')
+  
+  #YOUR CODE HERE
+  o1,o2,o3 = omega[0],omega[1],omega[2]
+  omega_hat = np.array([[0,-o3, o2],[o3, 0, -o1],[-o2, o1, 0]])
+  return omega_hat
+
+# NEW!
+def find_v(omega, theta, trans):
+  """
+  Finds the linear velocity term of the twist (v,omega) given omega, theta and translation
+  
+  Args:
+  omega - (3,) ndarray : the axis you want to rotate about
+  theta - scalar value
+  trans - (3,) ndarray of 3x1 list : the translation component of the rigid body transform
+  
+  Returns:
+  v - (3,1) ndarray : the linear velocity term of the twist (v,omega)
+  """    
+  r = rotation_3d(omega, theta)
+  A = (np.eye(3)  - r).dot(skew_3d(omega)) + np.outer(omega, omega)*theta
+  v = np.linalg.inv(A).dot(trans)
+  return np.array([[v[0]],[v[1]],[v[2]]])
+
+# NEW!
+def create_rbt(omega, theta, trans):
+  """
+  Creates a rigid body transform using omega, theta, and the translation component.
+  g = [R,p; 0,1], where R = exp(omega * theta), p = trans
+  
+  Args:
+  omega - (3,) ndarray : the axis you want to rotate about
+  theta - scalar value
+  trans - (3,) ndarray or 3x1 array: the translation component of the rigid body motion
+  
+  Returns:
+  g - (4,4) ndarray : the rigid body transform
+  """
+  rot = rotation_3d(omega, theta)
+  g = np.zeros((4,4))
+  g[:3,:3] = rot
+  g[3,3] = 1
+  g[:3,3] = trans
+  return g
+
+# NEW!
+def rotation_3d(omega, theta):
+  """
+  Computes a 3D rotation matrix given a rotation axis and angle of rotation.
+  
+  Args:
+  omega - (3,) ndarray: the axis of rotation
+  theta: the angle of rotation
+  
+  Returns:
+  rot - (3,3) ndarray: the resulting rotation matrix
+  """
+  if not omega.shape == (3,):
+      raise TypeError('omega must be a 3-vector')
+  
+  #YOUR CODE HERE
+
+  identity = np.eye(3)
+  norm = np.linalg.norm(omega)
+  omega_hat = skew_3d(omega)
+  rot = identity + omega_hat*np.sin(norm*theta)/norm + np.dot(omega_hat, omega_hat) * (1-np.cos(norm*theta))/(norm*norm)
+  return rot
+
+def deg2rad(deg):
+  # Zumy likes radians
+  return deg * np.pi/180.
+
+# NEW!
+def rotate_zumy_get_twist(angle):
+  omega = np.array([0, 0, 1]) # rotate about z
+  translation = np.array([0, 0, 0])
+  theta = deg2rad(angle)
+  omega = omega * theta
+  rbt = create_rbt(omega, theta, translation)
+  v = find_v(omega, theta, translation)
+  linear = Vector3(v[0]/5, v[1]/5, v[2]/5)
+  angular = Vector3(omega[0], omega[1], omega[2])
+  twist = Twist(linear, angular)
+  return twist
 
 def twist_to_speeds(msg):  #function to convert a geometry_message_twist to a robot action
   #done with math as done by doug
@@ -31,24 +128,21 @@ def speeds_to_twist(vel_data):
   wz = r*(vel_data[1] - vel_data[0])/2
   return (vx,wz)
 
-
-class ZumyROS:	
+class ZumyROS:
   def __init__(self):
     self.zumy = Zumy()
     rospy.init_node('zumy_ros')
     self.cmd = (0,0)
     rospy.Subscriber('cmd_vel', Twist, self.cmd_callback,queue_size=1)
     rospy.Subscriber('enable', Bool, self.enable_callback,queue_size=1)
-
     rospy.Subscriber('/base_computer',String,self.watchdog_callback,queue_size=1) #/base_computer topic, the global watchdog.  May want to investigate what happens when there moer than one computer and more than one zumy
 
     self.lock = Condition()
     self.rate = rospy.Rate(30.0)
     self.name = socket.gethostname()
 
-
     if rospy.has_param("~timeout"):
-        self.timeout = rospy.get_param('~timeout') #private value
+      self.timeout = rospy.get_param('~timeout') #private value
     else:
       self.timeout = 2 #Length of watchdog timer in seconds, defaults to 2 sec.
     
@@ -72,8 +166,8 @@ class ZumyROS:
     
     # NEW!
     self.IR_ai_pub = rospy.Publisher('/' + self.name + '/IR_ai', Float32, queue_size=1)
-
-
+    self.directions = {"F" : 0., "L" : 90., "R" : 270., "B" : 180.} # (CCW, 0 is N) the direction that the the zumy will face
+    self.zumy_vel_pub = rospy.Publisher('/' + self.name + '/cmd_vel', Twist, queue_size=2)
 
   def cmd_callback(self, msg):
     self.lock.acquire()
@@ -95,8 +189,6 @@ class ZumyROS:
     self.last_message_at = time.time()
     self.watchdog = True
 
-
-
   def run(self):
     while not rospy.is_shutdown():
       self.lock.acquire()
@@ -109,6 +201,13 @@ class ZumyROS:
         IR_ai_data = self.zumy.read_IR_ai()
         self.IR_ai_pub.publish(IR_ai_data)
       except ValueError:
+        pass
+
+      try:
+        twist = rotate_zumy_get_twist(self.directions['L'])
+        self.zumy_vel_pub.publish(twist)
+      except ValueError:
+        self.IR_ai_pub.publish(1.0)
         pass
 
       try:
@@ -168,17 +267,9 @@ class ZumyROS:
       status_msg.loop_freq = 1/float(np.mean(np.diff(self.laptimes)))
 
       self.status_pub.publish(status_msg)
-
-
-
-
       self.lock.release() #must be last command involving the zumy.
-     
-
+    
       self.rate.sleep()
-
-      
-
 
     # If shutdown, turn off motors & disable anything else.
     self.zumy.disable()

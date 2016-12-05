@@ -11,8 +11,6 @@ import time
 from serial import SerialException
 import numpy as np #just so I can use the np.mean function.  Nothing strange going on here.
 
-
-
 class Motor:
     def __init__(self, a1, a2):
         self.a1=a1
@@ -30,7 +28,6 @@ imu_names = ['accel_x','accel_y','accel_z','gyro_x','gyro_y','gyro_z']
 enc_pos_names = ['l_enc','r_enc']
 enc_vel_names = ['l_spd','r_spd']
 
-
 class Zumy:
     def __init__(self, dev='/dev/ttyACM0'):
         self.mbed=SerialRPC(dev, 115200)
@@ -44,7 +41,7 @@ class Zumy:
         self.imu_vars = [RPCVariable(self.mbed,name,delete = False) for name in imu_names]
         self.enc_pos_vars = [RPCVariable(self.mbed,name,delete = False) for name in enc_pos_names]
         self.enc_vel_vars = [RPCVariable(self.mbed,name,delete = False) for name in enc_vel_names]
-        self.rlock=threading.Lock()
+        self.rlock = threading.Lock()
 
         self.enabled = True #note it's enableD, to avoid namespace collision with the function 'enable'
 
@@ -124,7 +121,6 @@ class Zumy:
         self.mbed_enable.run(str(1))
       self.rlock.release()
 
-
     def disable(self):
       self.rlock.acquire()
 
@@ -139,7 +135,6 @@ class Zumy:
       #disables the robot if the battery voltage is very low
       if np.mean(self.volts) < 6.6: #6.6 volts--> 3.3V per cell.
         #averages over the last 5 battery measurements, because loading effects are :(
-
         self.disable()
         self.battery_lock = True
     
