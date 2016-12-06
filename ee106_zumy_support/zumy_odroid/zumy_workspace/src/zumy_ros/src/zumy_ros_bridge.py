@@ -168,7 +168,7 @@ class ZumyROS:
     
     # NEW!
     self.IR_ai_pub = rospy.Publisher('/' + self.name + '/IR_ai', Float32, queue_size=1)
-    self.directions = {"F" : 0., "L" : 90., "R" : 270., "B" : 180.} # (CCW, 0 is N) the direction that the the zumy will face
+    self.directions = {"F" : 0., "L" : 90., "R" : -90., "B" : 180.} # (CCW, 0 is N) the direction that the the zumy will face
     self.zumy_vel_pub = rospy.Publisher('/' + self.name + '/cmd_vel', Twist, queue_size=2)
 
   def cmd_callback(self, msg):
@@ -192,6 +192,7 @@ class ZumyROS:
     self.watchdog = True
 
   def run(self):
+
     while not rospy.is_shutdown():
       self.lock.acquire()
       self.zumy.cmd(*self.cmd)
@@ -202,16 +203,17 @@ class ZumyROS:
       try:
         IR_ai_data = self.zumy.read_IR_ai()
         self.IR_ai_pub.publish(IR_ai_data)
-      except ValueError:
-        pass
-
-      try:
-        twist = turn_zumy(self.directions['L'])
-        self.zumy_vel_pub.publish(twist)
+        if IR_ai_data < 0.5:
+          twist = turn_zumy(self.directions['L'])
+          self.zumy_vel_pub.publish(twist)
+        else:
+          twist = turn_zumy(self.directions['R'])
+          self.zumy_vel_pub.publish(twist)
       except ValueError:
         pass
 
       #END NEW
+
       try:
         imu_data = self.zumy.read_imu()
         imu_msg = Imu()

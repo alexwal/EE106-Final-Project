@@ -38,6 +38,8 @@ class Zumy:
         self.an = AnalogIn(self.mbed, p15)
         # NEW!
         self.IR_ai = AnalogIn(self.mbed, p16)
+
+        #END NEW
         self.imu_vars = [RPCVariable(self.mbed,name,delete = False) for name in imu_names]
         self.enc_pos_vars = [RPCVariable(self.mbed,name,delete = False) for name in enc_pos_names]
         self.enc_vel_vars = [RPCVariable(self.mbed,name,delete = False) for name in enc_vel_names]
