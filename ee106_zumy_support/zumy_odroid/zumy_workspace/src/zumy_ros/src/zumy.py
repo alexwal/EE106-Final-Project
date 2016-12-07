@@ -3,6 +3,9 @@
 Created on Wed Oct 29 06:39:30 2014
 
 @author: ajc
+
+Purpose: This code safely interfaces with zumy's ports to get sensor readings.
+
 """
 
 from mbedrpc import *
@@ -37,7 +40,8 @@ class Zumy:
 
         self.an = AnalogIn(self.mbed, p15)
         # NEW!
-        self.IR_ai = AnalogIn(self.mbed, p16)
+        self.IR_ai_side = AnalogIn(self.mbed, p18)
+        self.IR_ai_front = AnalogIn(self.mbed, p17)
 
         #END NEW
         self.imu_vars = [RPCVariable(self.mbed,name,delete = False) for name in imu_names]
@@ -60,8 +64,12 @@ class Zumy:
       self.disable()
 
     # NEW!
-    def read_IR_ai(self):
-      return self.IR_ai.read()
+    def read_IR_ai_side(self):
+      return self.IR_ai_side.read()
+
+    # NEW!
+    def read_IR_ai_front(self):
+      return self.IR_ai_front.read()
 
     def cmd(self, left, right):
         self.rlock.acquire()

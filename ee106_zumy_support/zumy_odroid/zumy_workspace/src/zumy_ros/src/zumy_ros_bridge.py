@@ -10,6 +10,11 @@ from zumy_ros.msg import ZumyStatus
 import numpy as np
 import socket,time
 
+"""
+Purpose: This code publishes commands (to topics that the zumy subscribes to), which drives the Zumy.
+
+"""
+
 # NEW!
 def skew_3d(omega):
   """
@@ -17,7 +22,7 @@ def skew_3d(omega):
   
   Args:
   omega - (3,) ndarray: the rotation vector
-  
+ 
   Returns:
   omega_hat - (3,3) ndarray: the corresponding skew symmetric matrix
   """
@@ -100,6 +105,7 @@ def deg2rad(deg):
 # NEW!
 def turn_zumy(angle):
   # angle in degrees
+  # returns a Twist that is published and turns zumy
   omega = np.array([0, 0, 1]) # rotate about z
   translation = np.array([0, 0, 0])
   theta = deg2rad(angle)
@@ -107,7 +113,15 @@ def turn_zumy(angle):
   rbt = create_rbt(omega, theta, translation)
   v = find_v(omega, theta, translation)
   linear = Vector3(v[0]/5, v[1]/5, v[2]/5)
-  angular = Vector3(omega[0], omega[1], omega[2])
+  angular = Vector3(omega[0], omega[1], omega[2] / 10)
+  twist = Twist(linear, angular)
+  return twist
+
+# NEW!
+def move_zumy_forward():
+  # returns a Twist that is published and moves Zumy forward 0.1 units
+  linear = Vector3(.1, 0, 0)
+  angular = Vector3(0, 0, 0)
   twist = Twist(linear, angular)
   return twist
 
@@ -129,6 +143,13 @@ def speeds_to_twist(vel_data):
   vx = (vel_data[0] + vel_data[1]) / 2
   wz = r*(vel_data[1] - vel_data[0])/2
   return (vx,wz)
+
+# NEW!
+def is_rotating(twist):
+  angular_velocity = twist.angular
+  if angular_velocity.z > .01:
+    return True
+  return False
 
 class ZumyROS:
   def __init__(self):
@@ -167,8 +188,11 @@ class ZumyROS:
     self.laptimes = np.ones(6)*time.time()
     
     # NEW!
-    self.IR_ai_pub = rospy.Publisher('/' + self.name + '/IR_ai', Float32, queue_size=1)
+    self.is_turning = False
+    self.IR_ai_side_pub = rospy.Publisher('/' + self.name + '/IR_ai_side', Float32, queue_size=1)
+    self.IR_ai_front_pub = rospy.Publisher("/" + self.name + "/IR_ai_front", Float32, queue_size=1)
     self.directions = {"F" : 0., "L" : 90., "R" : -90., "B" : 180.} # (CCW, 0 is N) the direction that the the zumy will face
+    # Publish twists to /cmd_vel in order to drive the Zumy.
     self.zumy_vel_pub = rospy.Publisher('/' + self.name + '/cmd_vel', Twist, queue_size=2)
 
   def cmd_callback(self, msg):
@@ -190,6 +214,14 @@ class ZumyROS:
     #update the last time i got a messag!
     self.last_message_at = time.time()
     self.watchdog = True
+  
+  # NEW!
+  def stop(self):
+    linear = Vector3(0, 0, 0)
+    angular = Vector3(0, 0, 0)
+    stop_twist = Twist(linear, angular)
+    self.zumy_vel_pub.publish(stop_twist)
+    self.is_turning = False
 
   def run(self):
 
@@ -197,22 +229,7 @@ class ZumyROS:
       self.lock.acquire()
       self.zumy.cmd(*self.cmd)
 
-      # NEW!
-      # Note: zumy code MUST be between acquire/release calls!
-      # Note: read must be in a try-catch block!
-      try:
-        IR_ai_data = self.zumy.read_IR_ai()
-        self.IR_ai_pub.publish(IR_ai_data)
-        if IR_ai_data < 0.5:
-          twist = turn_zumy(self.directions['L'])
-          self.zumy_vel_pub.publish(twist)
-        else:
-          twist = turn_zumy(self.directions['R'])
-          self.zumy_vel_pub.publish(twist)
-      except ValueError:
-        pass
-
-      #END NEW
+      self.is_turning = False
 
       try:
         imu_data = self.zumy.read_imu()
@@ -253,6 +270,54 @@ class ZumyROS:
         self.batt_pub.publish(v_bat)
       except ValueError:
         pass
+
+      # NEW!
+      # Note: zumy code MUST be between acquire/release calls!
+      # Note: read must be in a try-catch block!
+      try:
+        # self.zumy_vel_pub.publish(move_zumy_forward())
+        # side port is p18
+        IR_ai_side_data = self.zumy.read_IR_ai_side()
+	scaled_side_data = IR_ai_side_data * 3.3
+        self.IR_ai_side_pub.publish(scaled_side_data)
+        
+        '''
+        if IR_ai_data < 0.5:
+          twist = turn_zumy(self.directions['L'])
+          self.zumy_vel_pub.publish(twist)
+        else:
+          twist = turn_zumy(self.directions['R'])
+          self.zumy_vel_pub.publish(twist)
+        '''
+      except ValueError:
+        self.IR_ai_side_pub.publish(33)
+        pass
+      try:
+
+        if imu_msg.angular_velocity.z < .05:
+
+          IR_ai_front_data = self.zumy.read_IR_ai_front()
+	  scaled_front_data = IR_ai_front_data * 3.3
+          self.IR_ai_front_pub.publish(scaled_front_data)
+
+          if scaled_front_data > 2.0:
+            self.IR_ai_front_pub.publish(9999)
+            twist = turn_zumy(self.directions['L'])
+            self.zumy_vel_pub.publish(twist)
+            start = time.time()
+            while True:
+              if time.time() > start + 10:
+		self.stop()
+                break
+            
+            self.is_turning = True
+          
+      except ValueError:
+        self.IR_ai_front_pub.publish(36)
+        pass
+      
+
+      #END NEW
       
       if time.time() > (self.last_message_at + self.timeout): #i've gone too long without seeing the watchdog.
         self.watchdog = False
