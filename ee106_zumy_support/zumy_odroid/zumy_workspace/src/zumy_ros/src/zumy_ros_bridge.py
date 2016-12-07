@@ -276,9 +276,9 @@ class ZumyROS:
       # Note: read must be in a try-catch block!
       try:
         # self.zumy_vel_pub.publish(move_zumy_forward())
-        # side port is p18
+        # side port is p16
         IR_ai_side_data = self.zumy.read_IR_ai_side()
-	scaled_side_data = IR_ai_side_data * 3.3
+		scaled_side_data = IR_ai_side_data * 3.3
         self.IR_ai_side_pub.publish(scaled_side_data)
         
         '''
@@ -294,10 +294,12 @@ class ZumyROS:
         pass
       try:
 
+	# NEW! 
+	# checks if acceleration about z axis is below a certain level.
         if imu_msg.angular_velocity.z < .05:
 
           IR_ai_front_data = self.zumy.read_IR_ai_front()
-	  scaled_front_data = IR_ai_front_data * 3.3
+	  	  scaled_front_data = IR_ai_front_data * 3.3
           self.IR_ai_front_pub.publish(scaled_front_data)
 
           if scaled_front_data > 2.0:
@@ -307,7 +309,7 @@ class ZumyROS:
             start = time.time()
             while True:
               if time.time() > start + 10:
-		self.stop()
+				self.stop()
                 break
             
             self.is_turning = True
@@ -315,7 +317,6 @@ class ZumyROS:
       except ValueError:
         self.IR_ai_front_pub.publish(36)
         pass
-      
 
       #END NEW
       

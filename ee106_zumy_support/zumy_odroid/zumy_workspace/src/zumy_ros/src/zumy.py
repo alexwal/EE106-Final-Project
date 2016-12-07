@@ -40,7 +40,7 @@ class Zumy:
 
         self.an = AnalogIn(self.mbed, p15)
         # NEW!
-        self.IR_ai_side = AnalogIn(self.mbed, p18)
+        self.IR_ai_side = AnalogIn(self.mbed, p16)
         self.IR_ai_front = AnalogIn(self.mbed, p17)
 
         #END NEW
