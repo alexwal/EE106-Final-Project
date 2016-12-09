@@ -157,7 +157,17 @@ class AnalogIn():
         
     def read(self):
         r = self.mbed.rpc(self.name, "read", [])
-        return float(r)
+        return float(r) 
+        #try:
+        #    s = float(r)
+        #    return s
+        #except:
+        #    log_file = '/home/zumy/error.log'
+        #    with open(log_file, 'w+') as f:
+        #      f.write(str(r)+'hi')
+        #      f.close()
+        #      return 1.23
+
 
     #current implimentation does not support u16 read on LCP_1768's
     '''

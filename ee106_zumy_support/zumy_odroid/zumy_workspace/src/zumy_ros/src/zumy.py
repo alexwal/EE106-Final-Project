@@ -40,8 +40,10 @@ class Zumy:
 
         self.an = AnalogIn(self.mbed, p15)
         # NEW!
-        self.IR_ai_side = AnalogIn(self.mbed, p16)
-        self.IR_ai_front = AnalogIn(self.mbed, p17)
+        self.IR_ai_top = AnalogIn(self.mbed, p16)
+        self.IR_ai_side = AnalogIn(self.mbed, p17)
+        self.IR_ai_bottom = AnalogIn(self.mbed, p18)
+        self.IR_ai_front = AnalogIn(self.mbed, p19)
 
         #END NEW
         self.imu_vars = [RPCVariable(self.mbed,name,delete = False) for name in imu_names]
@@ -70,6 +72,14 @@ class Zumy:
     # NEW!
     def read_IR_ai_front(self):
       return self.IR_ai_front.read()
+
+    # NEW!
+    def read_IR_ai_top(self):
+      return self.IR_ai_top.read()
+
+    # NEW!
+    def read_IR_ai_bottom(self):
+      return self.IR_ai_bottom.read()
 
     def cmd(self, left, right):
         self.rlock.acquire()
