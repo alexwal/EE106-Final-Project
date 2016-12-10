@@ -40,9 +40,9 @@ class ZumyROS:
     self.zumy = Zumy()
     rospy.init_node('zumy_ros')
     self.cmd = (0,0)
-    rospy.Subscriber('cmd_vel', Twist, self.cmd_callback,queue_size=1)
-    rospy.Subscriber('enable', Bool, self.enable_callback,queue_size=1)
-    rospy.Subscriber('/base_computer',String,self.watchdog_callback,queue_size=1) #/base_computer topic, the global watchdog.  May want to investigate what happens when there moer than one computer and more than one zumy
+    rospy.Subscriber('cmd_vel', Twist, self.cmd_callback, queue_size=1)
+    rospy.Subscriber('enable', Bool, self.enable_callback, queue_size=1)
+    rospy.Subscriber('/base_computer',String,self.watchdog_callback, queue_size=1) #/base_computer topic, the global watchdog.  May want to investigate what happens when there moer than one computer and more than one zumy
 
     self.lock = Condition()
     self.rate = rospy.Rate(30.0)
@@ -58,12 +58,12 @@ class ZumyROS:
     self.imu_pub = rospy.Publisher('imu', Imu, queue_size = 1)
     self.r_enc_pub = rospy.Publisher('r_enc',Float32, queue_size = 5)
     self.l_enc_pub = rospy.Publisher('l_enc',Float32, queue_size = 5)
-    self.r_vel_pub = rospy.Publisher('r_vel',Float32,queue_size = 5)
-    self.l_vel_pub = rospy.Publisher('l_vel',Float32,queue_size = 5)
+    self.r_vel_pub = rospy.Publisher('r_vel',Float32, queue_size = 5)
+    self.l_vel_pub = rospy.Publisher('l_vel',Float32, queue_size = 5)
     
     self.imu_count = 0
 
-    self.batt_pub = rospy.Publisher('Batt',Float32,queue_size = 5)
+    self.batt_pub = rospy.Publisher('Batt',Float32, queue_size = 5)
 
     self.last_message_at = time.time()
     self.watchdog = True 

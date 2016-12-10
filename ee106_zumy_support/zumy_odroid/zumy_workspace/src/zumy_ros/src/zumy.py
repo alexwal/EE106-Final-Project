@@ -35,7 +35,7 @@ class Zumy:
     def __init__(self, dev='/dev/ttyACM0'):
         self.mbed=SerialRPC(dev, 115200)
 
-        self.tracks = RPCFunction(self.mbed,"sm")
+        self.tracks = RPCFunction(self.mbed, "sm")
         self.mbed_enable = RPCFunction(self.mbed,"enable")
 
         self.an = AnalogIn(self.mbed, p15)
@@ -85,9 +85,7 @@ class Zumy:
         self.rlock.acquire()
         # As of Rev. F, positive command is sent to both left and right
         try:
-          if self.enabled: #don't do anything if i'm disabled\
-
-
+          if self.enabled: #don't do anything if i'm disabled
             self.tracks.run(str(self.translation_factor*left) + " " + str(self.translation_factor*right))
             pass
         except SerialException:

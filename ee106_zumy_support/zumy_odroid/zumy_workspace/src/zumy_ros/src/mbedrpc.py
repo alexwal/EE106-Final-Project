@@ -169,7 +169,7 @@ class AnalogIn():
         #      return 1.23
 
 
-    #current implimentation does not support u16 read on LCP_1768's
+    #current implementation does not support u16 read on LCP_1768's
     '''
     def read_u16(self):
         r = self.mbed.rpc(self.name, "read_u16", [])
