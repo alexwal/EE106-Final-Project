@@ -1,0 +1,184 @@
+#!/usr/bin/env python
+import rospy
+import sys
+import math
+import numpy as np
+import time
+from std_msgs.msg import String,Header,Int32,Float32,Bool
+from geometry_msgs.msg import Transform, Vector3, Twist
+from sensor_msgs.msg import Imu
+import utils
+
+
+TURN_DELAY = 3
+UNBLOCK_DELAY = 1
+TIME_TO_TURN = 12.0
+
+class ZumyMaze:
+
+    def __init__(self):
+        rospy.init_node('zumy_maze')
+        if len(sys.argv) < 2:
+            print('Use: zumy_maze [ zumy name ]')
+            sys.exit()
+        self.name = sys.argv[1]
+
+        self.zumy_vel = rospy.Publisher('/'+self.name+'/cmd_vel', Twist, queue_size=2)
+        self.calibrate_pub = rospy.Publisher('/'+self.name+'/calibrate', Float32, queue_size=1)
+        self.zumy_direction = None
+        self.is_turning = False
+        self.turn_start_direction = None
+        self.right_blocked = True
+        self.front_blocked = False
+        self.just_turned_right = False
+        self.right_just_unblocked = False
+        self.received_right_data = False
+        self.done_calibrating_time = time.time()
+        self.unblocked_time = time.time()
+        # self.max_turn_degree = 76.0
+        self.max_turn_degree = float(sys.argv[2])
+        self.BLOCKED_THRESHOLD_FRONT = float(sys.argv[3])
+        self.BLOCKED_THRESHOLD_SIDE = float(sys.argv[4])
+
+        # self.BLOCKED_THRESHOLD_FRONT = 1.9
+        # self.BLOCKED_THRESHOLD_SIDE = 1.5
+
+        # self.done_calibration = False
+        self.directions = {"F" : 0., "L" : 90., "R" : -90., "B" : 180.} # (CCW, 0 is N) the direction that the the zumy will face
+
+        self.stop_zumy()
+
+    def get_zumy_direction(self, message):
+        # print('psi', message.data)
+        self.zumy_direction = message.data
+
+    def make_decision(self, is_right_blocked, is_front_blocked, just_unblocked):
+        if self.zumy_direction is None:
+            # This is set in self.stop()
+            # if direction is None, we are calibrating because stop just called
+            self.done_calibrating_time = time.time()
+        elif self.is_turning:
+            # print "checking turn completion"
+            self.check_turn_completion()
+        else:
+            if is_front_blocked and is_right_blocked:
+                self.turn_zumy(self.directions["L"])
+                self.just_turned_right = False
+            elif is_front_blocked and not is_right_blocked:
+                print "front blocked"
+                self.turn_zumy(self.directions["R"])
+                self.just_turned_right = True
+            elif not is_front_blocked and is_right_blocked:
+                self.move_zumy_forward()
+                self.just_turned_right = False
+            elif not is_front_blocked and not is_right_blocked:
+                print "neither blocked", self.just_turned_right
+                if self.just_turned_right:
+                    #if we just turned, move forward before making a decision to turn right
+                    self.just_turned_right = False
+                    while time.time() - self.done_calibrating_time <= TURN_DELAY:
+                        self.move_zumy_forward()
+                    print "done with turn delay"     
+                elif just_unblocked:
+                    #if we just got unblocked, then move forward before turning right
+                    while time.time() - self.unblocked_time <= UNBLOCK_DELAY:
+                        print "unblock delay"
+                        self.move_zumy_forward()
+                else:
+                    self.turn_zumy(self.directions["R"])
+                    self.just_turned_right = True
+                    self.last_turned_right = time.time()
+            else:
+                print "BIG ERROR"
+        self.received_right_data = False
+
+    def front_data_received(self, message):
+        data = message.data
+        if self.received_right_data:
+            if data > self.BLOCKED_THRESHOLD_FRONT:
+                self.front_blocked = True
+            else:
+                self.front_blocked = False
+            self.make_decision(self.right_blocked, self.front_blocked, self.right_just_unblocked)
+
+    def side_data_received(self, message):
+        data = message.data
+        if data > self.BLOCKED_THRESHOLD_SIDE:
+            self.right_blocked = True
+            self.right_just_unblocked = False
+        else:
+            if self.right_blocked:
+                self.right_just_unblocked = True
+                self.unblocked_time = time.time()
+            else:
+                self.right_just_unblocked = False
+            self.right_blocked = False
+        self.received_right_data = True
+
+    def check_turn_completion(self):
+        if abs(self.zumy_direction - self.turn_start_direction) >= utils.deg2rad(self.max_turn_degree):
+            # print 'zumy dirn', self.zumy_direction
+            difference = self.zumy_direction - self.turn_start_direction
+            if difference >= 0:
+                print('pos dir')
+                linear = Vector3(0, 0, 0)
+                angular = Vector3(0, 0, -1)
+                opp_twist = Twist(linear, angular)
+                self.zumy_vel.publish(opp_twist)
+            elif difference < 0:
+                print('neg dir')
+                linear = Vector3(0, 0, 0)
+                angular = Vector3(0, 0, 1)
+                opp_twist = Twist(linear, angular)
+                self.zumy_vel.publish(opp_twist)
+            self.stop_zumy()
+            self.done_calibrating_time = time.time()
+
+    def stop_zumy(self):
+	if self.is_turning:
+            linear = Vector3(0, 0, 0)
+            angular = Vector3(0, 0, 0)
+            stop_twist = Twist(linear, angular)
+            self.zumy_vel.publish(stop_twist)
+            self.is_turning = False
+	    print 'recalibrating'
+	    self.zumy_direction = None
+	   #self.calibrate_pub.publish(1.0) # tells kalman to recalibrate
+
+    def move_zumy_forward(self):
+        # returns a Twist that is published and moves Zumy forward 0.1 units
+        # print "forward dir: ", self.zumy_direction
+        linear = Vector3(.035, 0, 0)
+        angular = Vector3(0, 0, 0)
+        twist = Twist(linear, angular)
+        self.zumy_vel.publish(twist)
+
+    def turn_zumy(self, angle):
+        # angle in degrees
+        # returns a Twist that is published and turns zumy
+        self.is_turning = True
+        omega = np.array([0, 0, 1]) # rotate about z
+        translation = np.array([0, 0, 0])
+        theta = utils.deg2rad(angle)
+        omega = omega * theta
+        rbt = utils.create_rbt(omega, theta, translation)
+        v = utils.find_v(omega, theta, translation)
+        linear = Vector3(0.005, v[1]/3, v[2]/3)
+        angular = Vector3(omega[0]/3, omega[1]/3, omega[2]/12)
+
+        twist = Twist(linear, angular)
+        print 'STARTED TURNING'
+        self.turn_start_direction = self.zumy_direction
+        print 'turn start dirn', self.turn_start_direction
+        self.zumy_vel.publish(twist)
+
+    def run(self):
+        rospy.Subscriber("/"+self.name+"/IR_ai_side", Float32, self.side_data_received)
+        rospy.Subscriber("/"+self.name+"/IR_ai_front", Float32, self.front_data_received)
+        rospy.Subscriber("/"+self.name+"/psi", Float32, self.get_zumy_direction)
+        # rospy.Subscriber("/"+self.name+"/done_calib", Bool, self.done_calibration)
+        rospy.spin()
+  
+if __name__=='__main__':
+    node = ZumyMaze()
+    node.run()
