@@ -72,10 +72,10 @@ class ZumyROS:
     self.laptimes = np.ones(6)*time.time()
     
     # NEW!
-    self.IR_ai_side_pub = rospy.Publisher('/' + self.name + '/IR_ai_side', Float32, queue_size=1000)
-    self.IR_ai_front_pub = rospy.Publisher("/" + self.name + "/IR_ai_front", Float32, queue_size=1000)
-    self.IR_ai_top_pub = rospy.Publisher('/' + self.name + '/IR_ai_top', Float32, queue_size=1000)
-    self.IR_ai_bottom_pub = rospy.Publisher("/" + self.name + "/IR_ai_bottom", Float32, queue_size=1000)
+    self.IR_ai_side_pub = rospy.Publisher('/' + self.name + '/IR_ai_side', Float32, queue_size=1)
+    self.IR_ai_front_pub = rospy.Publisher("/" + self.name + "/IR_ai_front", Float32, queue_size=1)
+    self.IR_ai_top_pub = rospy.Publisher('/' + self.name + '/IR_ai_top', Float32, queue_size=1)
+    self.IR_ai_bottom_pub = rospy.Publisher("/" + self.name + "/IR_ai_bottom", Float32, queue_size=1)
     # Publish twists to /cmd_vel in order to drive the Zumy.
 
   def cmd_callback(self, msg):
