@@ -9,7 +9,7 @@ from geometry_msgs.msg import Transform, Vector3, Twist
 from sensor_msgs.msg import Imu
 import utils
 
-TURN_DELAY = 1.6
+TURN_DELAY = 1.8
 UNBLOCK_DELAY = 1.5
 SPEED_CONST = 4.0
 FWD_SPEED = 0.1
